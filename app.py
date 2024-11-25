@@ -14,6 +14,7 @@ import datetime
 import uvicorn
 import json
 import requests
+import re
 
 load_dotenv()
 
@@ -31,7 +32,7 @@ logger = logging.getLogger("agent")
 
 # Flask 및 데이터베이스 설정
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///mydatabase.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:/Temp/prac/mydatabase.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -241,15 +242,29 @@ def get_recipe_details(id):
     if not recipe:
         return jsonify({"error": "Recipe not found"}), 404
 
+    # instructions를 문자열에서 단계별 딕셔너리로 변환
+    try:
+        # 정규식으로 "1. 단계 설명" 형식의 단계 분리
+        steps = re.findall(r'(\d+)\.\s*([^.\d]+)', recipe.instructions)
+        instructions_dict = {
+            str(step_num): step_desc.strip() for step_num, step_desc in steps
+        }
+    except Exception as e:
+        return jsonify({"error": f"Failed to parse instructions: {e}"}), 500
+
     # 레시피 세부 정보 반환 (foodName, cookingTime, image, instructions 포함)
     return jsonify({
-        "recipe": { 
+        "recipe": {
             "foodName": recipe.food_name,
             "cookingTime": recipe.cooking_time,
             "image": recipe.image_url,
-            "instructions": recipe.instructions  # 조리 순서 포함
+            "instructions": instructions_dict  # 변환된 딕셔너리 반환
         }
     }), 200
+
+
+
+
 
 @app.route('/api/recipe', methods=['POST'])
 def get_recipes():
@@ -312,10 +327,12 @@ def recipe_recommend(ingredients):
     prompt = (
         f"다음 재료로 만들 수 있는 3가지의 레시피를 추천해줘: {', '.join(ingredients)}. "
         "각 레시피는 다음과 같은 형식으로 반환해줘:\n"
-        '[{"foodName": "음식명", "cookingTime": "조리시간", "image": "음식 사진 URL", "instructions": "조리 순서"}]\n'
+        '[{"foodName": "음식명", "cookingTime": "조리시간", "image": "음식 사진 URL", "instructions": "1. 첫 번째 단계, 2. 두 번째 단계, 3. 세 번째 단계"}]\n'
         "예시:\n"
-        '[{"foodName": "스파게티", "cookingTime": "30분", "image": "https://example.com/spaghetti.jpg", "instructions": "1. 물을 끓인다. 2. 면을 삶는다."}]\n'
+        '[{"foodName": "스파게티", "cookingTime": "30분", "image": "https://example.com/spaghetti.jpg", "instructions": "1. 첫 번째 단계, 2. 두 번째 단계, 3. 세 번째 단계"}]\n'
         "재료 목록은 출력하지 않아도 돼.\n"
+        "instructions는 항상 '1. 단계 설명, 2. 단계 설명, 3. 단계 설명'과 같은 로 구분된 문자열 형식으로 반환되어야 해.\n"
+        "instructions는 쉼표(,)로 단계를 구분하지 말고 반드시 마침표(.)로 단계를 구분해.\n"
         "이 레시피는 아무런 추가 설명 없이 JSON 형식으로만 반환해야 해."
         "응답에 'json'이라는 단어가 포함되지 않도록 해주세요."
     )
