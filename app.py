@@ -243,7 +243,7 @@ def get_recipe_details(id):
 
     # 레시피 세부 정보 반환 (foodName, cookingTime, image, instructions 포함)
     return jsonify({
-        "recipe": {
+        "recipe": { 
             "foodName": recipe.food_name,
             "cookingTime": recipe.cooking_time,
             "image": recipe.image_url,
@@ -251,39 +251,48 @@ def get_recipe_details(id):
         }
     }), 200
 
-@app.route('/api/recipe', methods=['GET'])
+@app.route('/api/recipe', methods=['POST'])
 def get_recipes():
-    """저장된 재료를 기반으로 3가지 레시피를 추천합니다."""
-    ingredients = Ingredient.query.all()
-    
-    if not ingredients:
-        return jsonify({"error": "No ingredients found in the database"}), 404
+    """사용자가 제공한 재료를 기반으로 3가지 레시피를 추천하고, 기존 재료 DB를 업데이트합니다."""
+    data = request.get_json()
+    ingredients_list = data.get('ingredients')
 
-    ingredients_list = [ingredient.name for ingredient in ingredients]
+    if not ingredients_list or not isinstance(ingredients_list, list):
+        return jsonify({"error": "Invalid input. Expected a list of ingredients."}), 400
+
+    # 레시피 추천
     recipe_response = recipe_recommend(ingredients_list)
 
     if not recipe_response:
         return jsonify({"error": "Failed to recommend recipes"}), 500
 
+    # 기존 재료 삭제 후 새 재료 추가
+    db.session.query(Ingredient).delete()  # 기존 재료 삭제
+    db.session.commit()
+
     saved_recipes = []
     for recipe in recipe_response[:3]:  # 처음 3개 레시피만 저장
-        existing_recipe = Recipe.query.filter_by(food_name=recipe['foodName']).first()
-        if not existing_recipe:
-            new_recipe = Recipe(
-                food_name=recipe['foodName'],
-                cooking_time=recipe['cookingTime'],
-                image_url=recipe['image'],
-                instructions=recipe.get('instructions')
-            )
-            db.session.add(new_recipe)
-            saved_recipes.append(new_recipe)
+        new_recipe = Recipe(
+            food_name=recipe['foodName'],
+            cooking_time=recipe['cookingTime'],
+            image_url=recipe['image'],
+            instructions=recipe.get('instructions')
+        )
+        db.session.add(new_recipe)
+        saved_recipes.append(new_recipe)
+
+    # 새 재료 DB에 추가
+    for ingredient in ingredients_list:
+        image_url = search_image(ingredient)  # 이미지 검색
+        if image_url:
+            new_ingredient = Ingredient(name=ingredient, image_url=image_url)
+            db.session.add(new_ingredient)
 
     db.session.commit()
 
     return jsonify({
         "recipes": [
             {
-                "id": recipe.id,
                 "foodName": recipe.food_name,
                 "cookingTime": recipe.cooking_time,
                 "image": recipe.image_url
