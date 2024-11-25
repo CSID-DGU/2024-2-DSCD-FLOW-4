@@ -53,50 +53,8 @@ class Recipe(db.Model):
 # 데이터베이스 초기화
 with app.app_context():
     db.create_all()
-    
-from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
-import requests
-import os
-import logging
-import json
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# 환경 변수 로드 및 초기 설정
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-API_ENDPOINT = os.environ.get("CHATGPT_API_URL")
-
-# 로깅 설정
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("agent")
-
-# Flask 및 데이터베이스 설정
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///mydatabase.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
-
-# 데이터베이스 모델 정의
-class Ingredient(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    image_url = db.Column(db.String(200), nullable=True)
-
-# 데이터베이스 모델 정의
-class Recipe(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    food_name = db.Column(db.String(100), nullable=False)
-    cooking_time = db.Column(db.String(50), nullable=False)
-    image_url = db.Column(db.String(200), nullable=False)
-    instructions = db.Column(db.Text, nullable=True)
-
-# 데이터베이스 초기화
-with app.app_context():
-    db.create_all()
-
+        
+        
 def analyze_fridge_contents(receipt_url):
     """온라인 영수증 URL에서 식자재를 분석합니다.""" 
     headers = {
@@ -111,49 +69,18 @@ def analyze_fridge_contents(receipt_url):
     payload = {
         "model": "gpt-4o",
         "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            },
+            {"role": "user", "content": prompt},
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "text",
-                        "text": "이 이미지를 분석해 주세요."
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": receipt_url
-                        }
-                    }
+                    {"type": "text", "text": "이 이미지를 분석해 주세요."},
+                    {"type": "image_url", "image_url": {"url": receipt_url}}
                 ]
             }
         ],
         "max_tokens": 2000
     }
-    try:
-        response = requests.post(API_ENDPOINT, headers=headers, json=payload)
-        response.raise_for_status()
-        
-        # JSON 형태로 응답을 파싱
-        ingredients_json = response.json()['choices'][0]['message']['content']
-        
-        # 응답 내용에서 'json' 문자열 제거
-        if ingredients_json.startswith("json"):
-            ingredients_json = ingredients_json[4:].strip()  # 'json' 제거 후 공백 제거
-
-        # JSON 문자열을 Python 객체로 변환
-        ingredients_data = json.loads(ingredients_json)  # JSON 파싱
-        
-        return ingredients_data  # JSON 형태의 리스트 반환
-    except requests.exceptions.RequestException as e:
-        logger.error(f"식자재 이미지 분석 중 오류 발생: {e}")
-        return None
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON 파싱 중 오류 발생: {e}")
-        return None
+    return _analyze_contents(headers, payload)
 
 def analyze_fridge_contents_simple(food_url): 
     """이미지 URL에서 식자재를 분석합니다."""
@@ -165,48 +92,35 @@ def analyze_fridge_contents_simple(food_url):
     prompt = """당신은 식자재 인식 전문가입니다. 사용자가 업로드한 이미지를 분석하여 구매한 식자재의 이름을 배열 형태로 반환해야 합니다.
     예를 들어, {"ingredients": ["양파", "당근"]} 와 같은 형식으로 응답해 주세요. 응답에 'json'이라는 단어가 포함되지 않도록 해주세요.
     이 이미지는 마트에서 구매한 다양한 식자재를 보여줍니다."""
-    
+
     payload = {
         "model": "gpt-4o",
         "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            },
+            {"role": "user", "content": prompt},
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "text",
-                        "text": "이 이미지를 분석해 주세요."
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": food_url
-                        }
-                    }
+                    {"type": "text", "text": "이 이미지를 분석해 주세요."},
+                    {"type": "image_url", "image_url": {"url": food_url}}
                 ]
             }
         ],
         "max_tokens": 2000
     }
+    return _analyze_contents(headers, payload)
 
+def _analyze_contents(headers, payload):
+    """식자재 분석 요청을 처리하는 공통 함수."""
     try:
         response = requests.post(API_ENDPOINT, headers=headers, json=payload)
         response.raise_for_status()
         
-        # JSON 형태로 응답을 파싱
         ingredients_json = response.json()['choices'][0]['message']['content']
         
-        # 응답 내용에서 'json' 문자열 제거
         if ingredients_json.startswith("json"):
             ingredients_json = ingredients_json[4:].strip()  # 'json' 제거 후 공백 제거
 
-        # JSON 문자열을 Python 객체로 변환
-        ingredients_data = json.loads(ingredients_json)  # JSON 파싱
-        
-        return ingredients_data  # JSON 형태의 리스트 반환
+        return json.loads(ingredients_json)  # JSON 파싱
     except requests.exceptions.RequestException as e:
         logger.error(f"식자재 이미지 분석 중 오류 발생: {e}")
         return None
