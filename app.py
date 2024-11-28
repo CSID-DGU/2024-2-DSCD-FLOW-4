@@ -14,12 +14,18 @@ import datetime
 import uvicorn
 import json
 import requests
+import re
+from flask_migrate import Migrate
+import speech_recognition as sr
+from pathlib import Path
+import tempfile
+from flask import send_from_directory
+from flask_cors import CORS
+from openai import OpenAI
 
 load_dotenv()
 
 # 환경 변수 로드 및 초기 설정
-LIVEKIT_API_KEY = os.environ.get("LIVEKIT_API_KEY")
-LIVEKIT_API_SECRET = os.environ.get("LIVEKIT_API_SECRET")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 SEARCH_ENGINE_ID = os.environ.get("SEARCH_ENGINE_ID")
@@ -29,12 +35,16 @@ API_ENDPOINT = os.environ.get("CHATGPT_API_URL")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("agent")
 
+
 # Flask 및 데이터베이스 설정
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///mydatabase.db'
+CORS(app)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////home/ubuntu/2024-2-DSCD-FLOW-4/mydatabase.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.secret_key = 'your_secret_key'
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 # 데이터베이스 모델 정의
 class Ingredient(db.Model):
@@ -52,10 +62,9 @@ class Recipe(db.Model):
 
 # 데이터베이스 초기화
 with app.app_context():
-    db.create_all()
+    db.create_all()  # 데이터베이스와 테이블 생성
         
-        
-def analyze_fridge_contents(receipt_url):
+def analyze_fridge_contents(receipt_url): 
     """온라인 영수증 URL에서 식자재를 분석합니다.""" 
     headers = {
         "Content-Type": "application/json",
@@ -241,15 +250,29 @@ def get_recipe_details(id):
     if not recipe:
         return jsonify({"error": "Recipe not found"}), 404
 
+    # instructions를 문자열에서 단계별 딕셔너리로 변환
+    try:
+        # 정규식으로 "1. 단계 설명" 형식의 단계 분리
+        steps = re.findall(r'(\d+)\.\s*([^.\d]+)', recipe.instructions)
+        instructions_dict = {
+            str(step_num): step_desc.strip() for step_num, step_desc in steps
+        }
+    except Exception as e:
+        return jsonify({"error": f"Failed to parse instructions: {e}"}), 500
+
     # 레시피 세부 정보 반환 (foodName, cookingTime, image, instructions 포함)
     return jsonify({
-        "recipe": { 
+        "recipe": {
             "foodName": recipe.food_name,
             "cookingTime": recipe.cooking_time,
             "image": recipe.image_url,
-            "instructions": recipe.instructions  # 조리 순서 포함
+            "instructions": instructions_dict  # 변환된 딕셔너리 반환
         }
     }), 200
+
+
+
+
 
 @app.route('/api/recipe', methods=['POST'])
 def get_recipes():
@@ -312,10 +335,12 @@ def recipe_recommend(ingredients):
     prompt = (
         f"다음 재료로 만들 수 있는 3가지의 레시피를 추천해줘: {', '.join(ingredients)}. "
         "각 레시피는 다음과 같은 형식으로 반환해줘:\n"
-        '[{"foodName": "음식명", "cookingTime": "조리시간", "image": "음식 사진 URL", "instructions": "조리 순서"}]\n'
+        '[{"foodName": "음식명", "cookingTime": "조리시간", "image": "음식 사진 URL", "instructions": "1. 첫 번째 단계, 2. 두 번째 단계, 3. 세 번째 단계"}]\n'
         "예시:\n"
-        '[{"foodName": "스파게티", "cookingTime": "30분", "image": "https://example.com/spaghetti.jpg", "instructions": "1. 물을 끓인다. 2. 면을 삶는다."}]\n'
+        '[{"foodName": "스파게티", "cookingTime": "30분", "image": "https://example.com/spaghetti.jpg", "instructions": "1. 첫 번째 단계, 2. 두 번째 단계, 3. 세 번째 단계"}]\n'
         "재료 목록은 출력하지 않아도 돼.\n"
+        "instructions는 항상 '1. 단계 설명, 2. 단계 설명, 3. 단계 설명'과 같은 로 구분된 문자열 형식으로 반환되어야 해.\n"
+        "instructions는 쉼표(,)로 단계를 구분하지 말고 반드시 마침표(.)로 단계를 구분해.\n"
         "이 레시피는 아무런 추가 설명 없이 JSON 형식으로만 반환해야 해."
         "응답에 'json'이라는 단어가 포함되지 않도록 해주세요."
     )
@@ -344,7 +369,138 @@ def recipe_recommend(ingredients):
     except json.JSONDecodeError as e:  
         logger.error(f"JSON 파싱 중 오류 발생: {e}, 응답 내용: {recipes}")  # 오류 발생 시 응답 내용 로그
         return None
+    
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
+# 음성 파일 저장을 위한 임시 디렉토리 생성
+TEMP_DIR = tempfile.mkdtemp()
+
+
+# 대화 기록 저장용
+store = {}
+
+def get_session_history(session_id: str) -> list:
+    """세션별 대화 기록 가져오기"""
+    if session_id not in store:
+        store[session_id] = []
+    return store[session_id]
+
+def update_session_history(session_id: str, role: str, content: str):
+    """세션별 대화 기록 업데이트"""
+    history = get_session_history(session_id)
+    history.append({"role": role, "content": content})
+
+def text_to_speech(text, file_index):
+    """텍스트를 음성으로 변환하고 임시 파일에 저장"""
+    speech_file_path = os.path.join(TEMP_DIR, f"speech_{file_index}.mp3")
+    response = client.audio.speech.create(
+        model="tts-1",
+        voice="alloy",
+        input=text
+    )
+    response.stream_to_file(Path(speech_file_path))
+    return speech_file_path
+
+def speech_to_text(audio_data):
+    """음성을 텍스트로 변환"""
+    recognizer = sr.Recognizer()
+    try:
+        text = recognizer.recognize_google(audio_data, language="ko-KR")
+        return text
+    except sr.UnknownValueError:
+        return None
+    except sr.RequestError:
+        return None
+
+def generate_cooking_response(user_input, recipe_data, current_step, session_id):
+    """사용자 입력에 대한 요리 관련 응답 생성"""
+    history = get_session_history(session_id)
+    steps = re.findall(r'(\d+)\.\s*([^.\d]+)', recipe_data['instructions'])
+
+    # "다음" 단계 요청
+    if "다음" in user_input:
+        current_step += 1
+        if current_step < len(steps):
+            response = f"다음 단계 안내입니다: {steps[current_step][1]}"
+        else:
+            response = "모든 조리 단계를 안내드렸습니다. 맛있게 드세요!"
+        update_session_history(session_id, "assistant", response)
+        return response, current_step
+
+    # "다시" 요청
+    elif "다시" in user_input:
+        response = f"현재 단계 다시 안내드립니다: {steps[current_step][1]}"
+        update_session_history(session_id, "assistant", response)
+        return response, current_step
+
+    # GPT를 활용한 질문 응답
+    messages = [
+        {"role": "system", "content": (
+            "You are a helpful and empathetic cooking assistant. "
+            "Always assume the user is a beginner and may not have access to advanced or uncommon ingredients. "
+            "If a missing ingredient is important, suggest simple and commonly available substitutes that are easy to use. "
+            "Reassure the user that they can still make the recipe even if a substitute isn't available. "
+            "Keep your responses concise, positive, and encouraging."
+        )}
+    ] + history + [
+        {"role": "user", "content": f"Recipe: {recipe_data['food_name']}\nCurrent step: {current_step}\nUser question: {user_input}"}
+    ]
+
+    response = client.chat.completions.create(model="gpt-4", messages=messages)
+    answer = response.choices[0].message.content
+    update_session_history(session_id, "assistant", answer)
+    return answer, current_step
+
+@app.route('/api/recipe/<int:recipe_id>/start', methods=['POST'])
+def start_cooking_session(recipe_id):
+    """요리 세션 시작"""
+    recipe = Recipe.query.get_or_404(recipe_id)
+    session_id = f"recipe_{recipe_id}"
+    initial_message = f"안녕하세요! 오늘 만들어볼 요리는 '{recipe.food_name}'입니다. 이제 조리 단계를 안내해드릴까요?"
+    update_session_history(session_id, "assistant", initial_message)
+    audio_file = text_to_speech(initial_message, 0)
+    return jsonify({
+        "message": initial_message,
+        "audio_url": f"/temp/{os.path.basename(audio_file)}",
+        "recipe_id": recipe_id
+    })
+
+@app.route('/api/recipe/<int:recipe_id>/query', methods=['POST'])
+def handle_cooking_query(recipe_id):
+    """음성 질문 처리 및 응답"""
+    recipe = Recipe.query.get_or_404(recipe_id)
+    session_id = f"recipe_{recipe_id}"
+
+    # 텍스트 또는 음성 입력 처리
+    if 'audio' not in request.files and 'text' not in request.form:
+        return jsonify({"error": "No audio or text provided"}), 400
+
+    current_step = int(request.form.get('current_step', 0))
+    if 'audio' in request.files:
+        audio_file = request.files['audio']
+        user_input = speech_to_text(audio_file)
+        if not user_input:
+            return jsonify({"error": "Could not process audio input"}), 400
+    else:
+        user_input = request.form.get('text')
+
+    # 응답 생성
+    response_text, current_step = generate_cooking_response(user_input, {
+        "food_name": recipe.food_name,
+        "instructions": recipe.instructions
+    }, current_step, session_id)
+
+    audio_file = text_to_speech(response_text, int(time.time()))
+    return jsonify({
+        "text": response_text,
+        "audio_url": f"/temp/{os.path.basename(audio_file)}",
+        "current_step": current_step
+    })
+
+@app.route('/temp/<path:filename>')
+def serve_temp_file(filename):
+    """임시 파일 제공"""
+    return send_from_directory(TEMP_DIR, filename)
 
 # Main Application Entry Point
 if __name__ == "__main__":
