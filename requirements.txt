@@ -1,3 +1,12 @@
+requests
+Pillow
+python-dotenv
+PyJWT
+Flask-Migrate
+SpeechRecognition
+Flask-CORS
+openai
+pymysql
 blinker==1.9.0
 boto3==1.35.70
 botocore==1.35.70
