@@ -356,7 +356,7 @@ def recipe_recommend(ingredients):
         '[{"foodName": "스파게티", "cookingTime": "30분", "image": "https://example.com/spaghetti.jpg", "instructions": "1. 첫 번째 단계, 2. 두 번째 단계, ... , N. 마지막 단계"}]\n'
         "재료 목록은 출력하지 않아도 돼.\n"
         "instructions는 항상 '1. 단계 설명, 2. 단계 설명, 3. 단계 설명'과 같은 로 구분된 문자열 형식으로 반환되어야 해.\n"
-        "instructions는 쉼표(,)로 단계를 구분하지 말고 반드시 마침표(.)로 단계를 구분해.\n"
+        "instructions는 쉼표(,)로 단계를 구분하지 말고 반드시 마침표(.)로 단계를 구분하세요.\n"
         "이 레시피는 아무런 추가 설명 없이 JSON 형식으로만 반환해야 해."
         "응답에 'json'이라는 단어가 포함되지 않도록 해주세요."
         "다음은 백종원의 요리 스타일을 참고한 레시피 예시입니다:\n\n"
