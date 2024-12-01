@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 import boto3
 import requests
@@ -15,7 +15,6 @@ import uvicorn
 import json
 import requests
 import re
-from flask_migrate import Migrate
 import speech_recognition as sr
 from pathlib import Path
 import tempfile
@@ -35,16 +34,14 @@ API_ENDPOINT = os.environ.get("CHATGPT_API_URL")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("agent")
 
-
 # Flask 및 데이터베이스 설정
 app = Flask(__name__)
 CORS(app)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////home/ubuntu/2024-2-DSCD-FLOW-4/mydatabase.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:/Temp/prac/mydatabase.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = 'your_secret_key'
 
 db = SQLAlchemy(app)
-migrate = Migrate(app, db)
 
 # 데이터베이스 모델 정의
 class Ingredient(db.Model):
@@ -60,26 +57,26 @@ class Recipe(db.Model):
     image_url = db.Column(db.String(200), nullable=False)
     instructions = db.Column(db.Text, nullable=True)
 
+# 데이터베이스 초기화
+with app.app_context():
+    db.create_all()
+        
+# ⭐퓨샷 프롬프팅 파일 - LLM 답변
+friedrice_path = './few-shot_friedrice.txt'
 
-# 현재 스크립트 위치를 기준으로 파일 경로 설정 - 퓨샷 프롬프팅 파일
-current_dir = os.path.dirname(os.path.abspath(__file__))
-friedrice_path = os.path.join(current_dir, 'few-shot_friedrice.txt')
-reciperecommend_path = os.path.join(current_dir, 'few-shot_recipes.txt')
-
-# 파일 읽기
 with open(friedrice_path, 'r', encoding='utf-8') as friedrice_file:
     friedrice_examples = friedrice_file.read()
+
+# ⭐퓨샷 프롬프팅 파일 - 레시피 추천
+reciperecommend_path = './few-shot_recipes.txt'
 
 with open(reciperecommend_path, 'r', encoding='utf-8') as reciperecommend_file:
     reciperecommend_examples = reciperecommend_file.read()
 
 
 
-# 데이터베이스 초기화
-with app.app_context():
-    db.create_all()  # 데이터베이스와 테이블 생성
         
-def analyze_fridge_contents(receipt_url): 
+def analyze_fridge_contents(receipt_url):
     """온라인 영수증 URL에서 식자재를 분석합니다.""" 
     headers = {
         "Content-Type": "application/json",
@@ -286,9 +283,6 @@ def get_recipe_details(id):
     }), 200
 
 
-
-
-
 @app.route('/api/recipe', methods=['POST'])
 def get_recipes():
     """사용자가 제공한 재료를 기반으로 3가지 레시피를 추천하고, 기존 재료 DB를 업데이트합니다."""
@@ -388,7 +382,8 @@ def recipe_recommend(ingredients):
     except json.JSONDecodeError as e:  
         logger.error(f"JSON 파싱 중 오류 발생: {e}, 응답 내용: {recipes}")  # 오류 발생 시 응답 내용 로그
         return None
-    
+
+
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # 음성 파일 저장을 위한 임시 디렉토리 생성
