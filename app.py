@@ -16,12 +16,14 @@ import json
 import requests
 import re
 from flask_migrate import Migrate
-import speech_recognition as sr
+#import speech_recognition as sr
 from pathlib import Path
 import tempfile
 from flask import send_from_directory
 from flask_cors import CORS
 from openai import OpenAI
+from werkzeug.utils import secure_filename
+
 
 load_dotenv()
 
@@ -41,7 +43,6 @@ app = Flask(__name__)
 CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////home/ubuntu/2024-2-DSCD-FLOW-4/mydatabase.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.secret_key = 'your_secret_key'
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
@@ -63,6 +64,40 @@ class Recipe(db.Model):
 # 데이터베이스 초기화
 with app.app_context():
     db.create_all()  # 데이터베이스와 테이블 생성
+    
+# 업로드할 디렉토리 설정
+UPLOAD_FOLDER = 'uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+@app.route('/api/upload', methods=['POST'])
+def upload_image():
+    """이미지를 서버에 업로드하고 URL을 반환합니다."""
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    
+    # 파일 이름 안전하게 처리
+    filename = secure_filename(file.filename)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    
+    # 파일 저장
+    file.save(file_path)
+
+    # 이미지 URL 생성 (절대 URL로 변환)
+    image_url = f"{request.host_url}uploads/{filename}"
+
+    # 데이터베이스에 저장 (예: Ingredient 모델에 추가)
+    #new_ingredient = Ingredient(name=filename, image_url=image_url)
+    #db.session.add(new_ingredient)
+    #db.session.commit()
+
+    return jsonify({"url": image_url}), 200 
         
 def analyze_fridge_contents(receipt_url): 
     """온라인 영수증 URL에서 식자재를 분석합니다.""" 
@@ -272,8 +307,6 @@ def get_recipe_details(id):
 
 
 
-
-
 @app.route('/api/recipe', methods=['POST'])
 def get_recipes():
     """사용자가 제공한 재료를 기반으로 3가지 레시피를 추천하고, 기존 재료 DB를 업데이트합니다."""
@@ -374,7 +407,6 @@ client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # 음성 파일 저장을 위한 임시 디렉토리 생성
 TEMP_DIR = tempfile.mkdtemp()
-
 
 # 대화 기록 저장용
 store = {}
