@@ -1,0 +1,51 @@
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/white">
+
+    <!-- 뒤로 가기 버튼 -->
+    <ImageView
+        android:id="@+id/backButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="뒤로 가기"
+        android:src="@drawable/ic_arrow_back"
+        android:layout_margin="16dp" />
+
+    <!-- 중앙 아이콘 -->
+    <ImageView
+        android:id="@+id/cookingAssistantIcon"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:src="@drawable/ic_ing"
+        android:contentDescription="Cooking Assistant Icon"
+        android:layout_gravity="center"
+        android:layout_marginTop="100dp"
+        android:layout_marginBottom="24dp" />
+
+    <!-- 조리 단계 안내 메시지 -->
+    <TextView
+        android:id="@+id/cookingStepMessage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="조리 단계 안내 메시지가 여기에 표시됩니다."
+        android:textSize="20sp"
+        android:textAlignment="center"
+        android:textColor="@android:color/black"
+        android:layout_marginBottom="100dp" />
+
+    <!-- 다음 단계 버튼 -->
+    <Button
+        android:id="@+id/nextStepButton"
+        android:layout_gravity="center"
+        android:layout_width="250dp"
+        android:layout_height="wrap_content"
+        android:text="다음 단계"
+        android:textSize="20sp"
+        android:padding="10dp"
+        android:background="@drawable/button_rec_light_blue"
+        android:textColor="@color/white" />
+</LinearLayout>

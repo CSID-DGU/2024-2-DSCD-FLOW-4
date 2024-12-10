@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Martfia" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- 기본 폰트 설정 -->
+        <item name="android:fontFamily">@font/poppins_regular</item>
+        <item name="fontFamily">@font/poppins_regular</item>
+    </style>
+
+    <!-- 둥근 모서리 스타일 -->
+    <style name="ShapeAppearanceOverlay.MaterialComponents.CornerSizeSmall" parent="ShapeAppearance.MaterialComponents.SmallComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">8dp</item> <!-- 모서리 둥글기 설정 -->
+    </style>
+
+
+</resources>

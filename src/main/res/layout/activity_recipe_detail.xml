@@ -1,0 +1,124 @@
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@android:color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- 뒤로 가기 버튼 -->
+        <ImageView
+            android:id="@+id/backButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="뒤로 가기"
+            app:srcCompat="@drawable/ic_arrow_back"
+            android:layout_margin="16dp" />
+
+        <!-- 레시피 이미지 -->
+        <ImageView
+            android:id="@+id/recipeImageView"
+            android:layout_width="match_parent"
+            android:layout_height="250dp"
+            android:scaleType="centerCrop"
+            android:contentDescription="레시피 이미지"
+            android:layout_marginTop="10dp"
+            />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="25dp">
+
+            <!-- 레시피 이름 -->
+            <TextView
+                android:id="@+id/recipeNameTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="레시피 이름"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/black"
+                android:layout_marginBottom="8dp" />
+
+            <!-- 레시피 시간 -->
+            <TextView
+                android:id="@+id/recipeTimeTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="레시피 시간"
+                android:textSize="16sp"
+                android:textColor="@android:color/darker_gray"
+                android:layout_marginBottom="30dp" />
+
+            <!-- 조리 Assistant -->
+            <TextView
+                android:id="@+id/assistantTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="조리 Assistant"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/black"
+                android:layout_marginBottom="8dp" />
+
+            <!-- 조리 Assistant 버튼 -->
+            <LinearLayout
+                android:id="@+id/assistantButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="10dp"
+                android:background="@drawable/button_rec_light_grey"
+                android:layout_marginBottom="30dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <!-- 아이콘 -->
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_gravity="center_vertical"
+                    android:src="@drawable/ic_ing"
+                    android:contentDescription="조리 Assistant" />
+
+                <!-- 텍스트 -->
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:paddingStart="5dp"
+                    android:paddingEnd="5dp"
+                    android:text="조리 Assistant와 대화를 통해 요리해보세요!"
+                    android:textSize="12sp"
+                    android:gravity="center_vertical"
+                    android:textColor="@android:color/black" />
+            </LinearLayout>
+
+            <!-- 조리 방법 -->
+            <TextView
+                android:id="@+id/recipeStepsTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="조리 방법"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/black"
+                 />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recipeStepsRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:clipToPadding="false"
+                android:paddingBottom="5dp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
